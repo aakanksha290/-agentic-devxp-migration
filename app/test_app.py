@@ -14,3 +14,7 @@ def test_fee_normal():
 
 def test_fee_minimum():
     assert calculate_fee(10) == 1
+
+
+def test_fee_rounding():
+    assert calculate_fee(1234.56) == 24.69

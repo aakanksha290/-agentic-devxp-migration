@@ -1,0 +1,52 @@
+# REUSABLE WORKFLOW #1 - Build + test for any Python service.
+# Replaces the copy-pasted "Install / Test / Lint" stages in every Jenkinsfile
+# and the Jenkins Shared Library. Teams call it with ~5 lines of YAML.
+name: Reusable - Python CI
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        type: string
+        default: "."
+      python-version:
+        type: string
+        default: "3.12"
+
+permissions:
+  contents: read            # least privilege by default
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        check: [unit-tests, lint]      # Jenkins "parallel" -> GitHub "matrix"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-python-app
+        with:
+          python-version: ${{ inputs.python-version }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Unit tests
+        if: matrix.check == 'unit-tests'
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          mkdir -p reports
+          pytest -q --junitxml=reports/junit.xml
+
+      - name: Lint
+        if: matrix.check == 'lint'
+        working-directory: ${{ inputs.working-directory }}
+        run: flake8 . --max-line-length=120
+
+      # Jenkins "post { always { junit ... } }" -> "if: always()"
+      - name: Upload test report
+        if: always() && matrix.check == 'unit-tests'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: ${{ inputs.working-directory }}/reports/

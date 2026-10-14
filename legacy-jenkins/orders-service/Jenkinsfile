@@ -1,0 +1,34 @@
+// LEGACY pipeline for a second team - almost the same as payments-service,
+// but written differently. This fragmentation is what reusable workflows fix.
+@Library('company-shared-lib') _
+
+pipeline {
+    agent { label 'linux' }
+
+    stages {
+        stage('Build') {
+            steps {
+                sh 'pip install -r requirements.txt'
+                sh 'python -m pytest'
+            }
+        }
+        stage('Docker') {
+            steps {
+                script {
+                    dockerBuildAndPush('orders-service')   // from shared library
+                }
+            }
+        }
+        stage('Deploy dev') {
+            steps {
+                sh 'helm upgrade --install orders ./chart --namespace dev'
+            }
+        }
+    }
+
+    post {
+        always {
+            slackSend channel: '#orders-ci', message: "Build ${currentBuild.result}"
+        }
+    }
+}

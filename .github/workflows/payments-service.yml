@@ -1,0 +1,62 @@
+# MIGRATED pipeline for payments-service ("after" picture).
+# Compare with legacy-jenkins/payments-service/Jenkinsfile (~75 lines, all logic inline).
+# Here the team only CALLS the standard reusable workflows.
+name: payments-service
+
+on:
+  pull_request:
+    paths: ["app/**", "k8s/**", ".github/workflows/payments-service.yml"]
+  push:
+    branches: [main]
+    paths: ["app/**", "k8s/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/reusable-python-ci.yml
+    with:
+      working-directory: app
+
+  build:
+    needs: ci
+    uses: ./.github/workflows/reusable-docker-build.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image-name: payments-service
+      context: app
+      push: ${{ github.event_name != 'pull_request' }}   # PRs build but never push
+
+  deploy-prod:
+    needs: build
+    # Deploy is switched on per repo (Settings > Variables: DEPLOY_ENABLED=true)
+    # once the cluster and the 'production' environment reviewers are configured.
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    uses: ./.github/workflows/reusable-k8s-deploy.yml
+    with:
+      environment: production          # requires reviewer approval (replaces Jenkins 'input')
+      app-name: payments-service
+      image: ${{ needs.build.outputs.image }}
+    secrets:
+      KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+
+  # OBSERVABILITY: every run writes a standard summary to the Actions UI.
+  summary:
+    needs: [ci, build, deploy-prod]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delivery summary
+        run: |
+          echo "## payments-service delivery summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Stage | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CI | ${{ needs.ci.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build | ${{ needs.build.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Deploy prod | ${{ needs.deploy-prod.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | ${{ github.sha }} |" >> "$GITHUB_STEP_SUMMARY"

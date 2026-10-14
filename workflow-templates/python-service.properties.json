@@ -1,0 +1,6 @@
+{
+  "name": "Python service (golden path)",
+  "description": "Standard CI + container build for Python services, using platform reusable workflows.",
+  "iconName": "python",
+  "categories": ["Python", "Continuous integration"]
+}

@@ -1,0 +1,61 @@
+# GUARDRAILS - the "validation layer" that every change (human OR AI-written) must pass.
+# Make these REQUIRED status checks in branch protection / rulesets.
+name: guardrails
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  jira-link:
+    # Traceability: every PR must reference a Jira ticket, e.g. "PAY-123: add fee rule"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check PR title has a Jira key
+        env:
+          TITLE: ${{ github.event.pull_request.title }}   # passed via env, never inline -> avoids script injection
+        run: |
+          if echo "$TITLE" | grep -Eq '[A-Z][A-Z0-9]+-[0-9]+'; then
+            echo "Jira key found"
+          else
+            echo "::error::PR title must contain a Jira key like PAY-123"
+            exit 1
+          fi
+
+  workflow-lint:
+    # Catches hallucinated / broken YAML before a human even reviews it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint (official GitHub Actions linter)
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color
+
+  workflow-policy:
+    # Our own platform rules (see scripts/validate_workflows.py)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - run: python scripts/validate_workflows.py .github/workflows
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,72 @@
+// LEGACY pipeline - this is the "before" picture we are migrating away from.
+// Typical problems: copy-pasted per team, hardcoded values, long-lived credentials,
+// manual approval in Jenkins, no standard reporting.
+pipeline {
+    agent { label 'linux-docker' }
+
+    environment {
+        APP_NAME = 'payments-service'
+        REGISTRY = 'myregistry.azurecr.io'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install') {
+            steps {
+                sh 'pip install -r requirements.txt'
+            }
+        }
+
+        stage('Test') {
+            parallel {
+                stage('Unit tests') {
+                    steps { sh 'pytest -q' }
+                }
+                stage('Lint') {
+                    steps { sh 'flake8 .' }
+                }
+            }
+        }
+
+        stage('Build image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'acr-creds',
+                                 usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh 'docker login $REGISTRY -u $USER -p $PASS'
+                    sh 'docker build -t $REGISTRY/$APP_NAME:$BUILD_NUMBER .'
+                    sh 'docker push $REGISTRY/$APP_NAME:$BUILD_NUMBER'
+                }
+            }
+        }
+
+        stage('Approve prod') {
+            when { branch 'main' }
+            steps {
+                input message: 'Deploy to production?'
+            }
+        }
+
+        stage('Deploy') {
+            when { branch 'main' }
+            steps {
+                withCredentials([file(credentialsId: 'prod-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh 'kubectl set image deployment/$APP_NAME $APP_NAME=$REGISTRY/$APP_NAME:$BUILD_NUMBER'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            junit 'reports/*.xml'
+        }
+        failure {
+            mail to: 'team@example.com', subject: "Build failed: ${env.JOB_NAME}", body: "See ${env.BUILD_URL}"
+        }
+    }
+}

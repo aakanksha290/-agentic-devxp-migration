@@ -1,0 +1,23 @@
+# Composite action = a small bundle of STEPS that many workflows reuse.
+# (A reusable workflow is bigger: it is a whole JOB.)
+name: Setup Python app
+description: Checkout-independent setup - installs Python and dependencies with caching
+inputs:
+  python-version:
+    description: Python version
+    default: "3.12"
+  working-directory:
+    description: Folder that contains requirements.txt
+    default: "."
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: ${{ inputs.working-directory }}/requirements.txt
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: pip install -r requirements.txt

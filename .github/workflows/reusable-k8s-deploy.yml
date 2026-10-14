@@ -1,0 +1,52 @@
+# REUSABLE WORKFLOW #3 - Deploy to Kubernetes.
+# Jenkins "input 'Deploy to production?'" -> GitHub ENVIRONMENT with required reviewers.
+# The approval is configured in repo Settings > Environments > production,
+# so it is enforced by the platform and cannot be skipped by editing YAML.
+name: Reusable - Kubernetes deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      app-name:
+        type: string
+        required: true
+      image:
+        type: string
+        required: true
+    secrets:
+      KUBECONFIG_B64:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}     # <- human approval gate lives here
+    concurrency: deploy-${{ inputs.environment }}-${{ inputs.app-name }}   # no overlapping deploys
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-kubectl@v4
+
+      # NOTE: for AKS/EKS/GKE prefer OIDC federation (azure/login, aws-actions/configure-aws-credentials)
+      # so there is no stored kubeconfig at all. Kept simple here for the demo.
+      - name: Configure cluster access
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl set image deployment/${{ inputs.app-name }} ${{ inputs.app-name }}=${{ inputs.image }}
+          kubectl rollout status deployment/${{ inputs.app-name }} --timeout=120s
+
+      - name: Rollback on failure
+        if: failure()
+        run: kubectl rollout undo deployment/${{ inputs.app-name }}

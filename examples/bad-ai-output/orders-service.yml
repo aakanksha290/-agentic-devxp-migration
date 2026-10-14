@@ -1,0 +1,16 @@
+# DEMO: an example of what an AI might produce WITHOUT good context / guardrails.
+# Run: python scripts/validate_workflows.py examples/bad-ai-output
+# The validator catches every problem below before a human even has to look.
+name: orders-service
+
+on:
+  pull_request:
+
+jobs:                                   # <- no permissions block (defaults may be too broad)
+  build:
+    runs-on: ubuntu-latest              # <- no timeout
+    steps:
+      - uses: actions/checkout@main     # <- pinned to a moving branch
+      - uses: company/docker-magic      # <- hallucinated action with no version
+      - run: echo "Building ${{ github.event.pull_request.title }}"   # <- script injection risk
+      - run: docker login -u admin --password=Sup3rSecret123 # <- hardcoded secret

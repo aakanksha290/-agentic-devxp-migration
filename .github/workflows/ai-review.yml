@@ -1,0 +1,36 @@
+# AI-ASSISTED REVIEW - human-in-the-loop by design.
+#  - Runs ONLY when a human adds the label "ai-review" (opt-in, not automatic).
+#  - The AI can only COMMENT. It cannot approve, merge, push or deploy.
+#  - A CODEOWNER must still approve the PR (enforced by branch protection).
+#  - Does not run on PRs from forks, so untrusted code never gets the API key.
+name: ai-review
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+  pull-requests: write      # needed only to post review comments
+  id-token: write
+
+jobs:
+  review:
+    if: >
+      github.event.label.name == 'ai-review' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request using the rules in .github/copilot-instructions.md
+            and .github/instructions/workflows.instructions.md.
+            Focus on: security (secrets, permissions, unpinned actions), correctness,
+            and whether a migrated workflow really matches the original Jenkinsfile.
+            Post findings as review comments. Say clearly when you are unsure.
+            Do NOT approve the PR - a human reviewer decides.

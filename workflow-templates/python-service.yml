@@ -1,0 +1,25 @@
+# STARTER WORKFLOW (golden path).
+# Put this folder in the org's special ".github" repository. Teams then see it under
+# Actions > New workflow > "By my-org", and get a working pipeline in one click.
+name: Python service pipeline
+
+on:
+  pull_request:
+  push:
+    branches: [$default-branch]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: my-org/platform-workflows/.github/workflows/reusable-python-ci.yml@v1
+
+  build:
+    needs: ci
+    uses: my-org/platform-workflows/.github/workflows/reusable-docker-build.yml@v1
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image-name: CHANGE-ME

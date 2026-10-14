@@ -1,0 +1,20 @@
+# CODEOWNERS - GitHub automatically requests these reviewers when matching files change.
+# With branch protection "Require review from Code Owners", their approval is mandatory.
+
+# Default owner for everything
+*                         @my-org/payments-team
+
+# Pipelines and reusable workflows are owned by the platform team
+/.github/workflows/       @my-org/platform-team
+/.github/actions/         @my-org/platform-team
+/workflow-templates/      @my-org/platform-team
+
+# AI context files change how agents behave -> platform + security review
+/.github/copilot-instructions.md   @my-org/platform-team @my-org/security-team
+/.github/instructions/             @my-org/platform-team @my-org/security-team
+/.github/prompts/                  @my-org/platform-team
+/CLAUDE.md                         @my-org/platform-team @my-org/security-team
+/AGENTS.md                         @my-org/platform-team @my-org/security-team
+
+# Deployment manifests
+/k8s/                     @my-org/platform-team @my-org/payments-team
